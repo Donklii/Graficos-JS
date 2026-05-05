@@ -1,0 +1,32 @@
+{
+  "name": "graficos-js",
+  "version": "0.1.0",
+  "description": "Biblioteca leve de gráficos em SVG puro (linha, donut, colunas, sparkline) sem dependências.",
+  "private": false,
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Donklii",
+  "keywords": [
+    "grafico",
+    "svg",
+    "chart",
+    "sparkline",
+    "donut",
+    "colunas",
+    "vanilla-js"
+  ],
+  "files": [
+    "auxiliaresSvg.js",
+    "colunas.js",
+    "dominio.js",
+    "donut.js",
+    "eixos.js",
+    "formatadores.js",
+    "interacao.js",
+    "nucleo.js",
+    "popupGrupo.js",
+    "series.js",
+    "sparkline.js",
+    "README.md",
+    "LICENSE"
+  ]
+}
