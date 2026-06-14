@@ -1,15 +1,16 @@
 // ============================================================
-// GraficoLib.Colunas — gráfico de colunas (barras verticais)
+// GraficoLib.Barras — gráfico de barras horizontais
 // ============================================================
 //
-// Recebe um <svg> pronto (com viewBox) e desenha colunas agrupadas
-// por categoria. Suporta múltiplas séries (renderiza uma coluna
-// por série dentro do mesmo grupo), legenda interna no topo e
-// tooltip ao passar o mouse em cada coluna.
+// Recebe um <svg> pronto (com viewBox) e desenha barras horizontais
+// agrupadas por categoria. Espelha a API de Colunas (mesma forma de
+// config), trocando o eixo: categorias no eixo Y (uma faixa por
+// categoria) e valores no eixo X. Ideal para rankings, onde rótulos
+// longos cabem melhor na horizontal.
 //
 // API:
-//   window.GraficoLib.Colunas.Renderizar(svg, config);
-//   window.GraficoLib.Colunas.Limpar(svg);
+//   window.GraficoLib.Barras.Renderizar(svg, config);
+//   window.GraficoLib.Barras.Limpar(svg);
 //
 // config:
 //   {
@@ -18,15 +19,16 @@
 //       { rotulo: 'Faturamento', cor: 'var(--positive)', valores: [n1, n2, ...] },
 //       ...
 //     ],
-//     formatarValor:     (v) => string,                // labels eixo Y (default: toString)
-//     formatarRotulo:    (cat) => string,              // labels eixo X (default: identidade)
-//     padding:           { top, right, bottom, left }, // default: { 20, 14, 38, 64 }
+//     formatarValor:     (v) => string,                // labels eixo X (default: toString)
+//     formatarRotulo:    (cat) => string,              // labels eixo Y (default: identidade)
+//     padding:           { top, right, bottom, left }, // default: { 20, 16, 28, 96 }
 //     numeroLinhasGrade: 4,                            // default: 4
-//     mostrarValores:    false,                        // valor sobre cada coluna
+//     mostrarValores:    false,                        // valor na ponta de cada barra
 //     mostrarLegenda:    auto,                         // default: series.length > 1
-//     raio:              3,                            // arredondamento da coluna
+//     raio:              3,                            // arredondamento da barra
 //     mostrarTooltip:    true,                         // tooltip no hover (default: true)
 //     formatarTooltip:   (ctx) => string,              // ctx: { categoria, serie, valor, total }
+//     animar:            false,                         // anima crescimento na entrada
 //   }
 //
 // Depende de: GraficoLib.AuxiliaresSvg
@@ -35,34 +37,35 @@
 
   const TESTANDO = false;
 
-  const CLASSE_CAMADA      = 'grafico-colunas-conteudo';
-  const CLASSE_TOOLTIP     = 'chart-tooltip grafico-colunas-tooltip';
-  const PADDING_PADRAO     = { top: 20, right: 14, bottom: 38, left: 64 };
+  const CLASSE_CAMADA      = 'grafico-barras-conteudo';
+  const CLASSE_TOOLTIP     = 'chart-tooltip grafico-barras-tooltip';
+  const PADDING_PADRAO     = { top: 20, right: 16, bottom: 28, left: 96 };
   const NUM_LINHAS_PADRAO  = 4;
-  const FRACAO_GAP_GRUPO   = 0.55;
+  const FRACAO_GAP_GRUPO   = 0.35;
   const FRACAO_GAP_BARRA   = 0.30;
   const RAIO_PADRAO        = 3;
   const ALTURA_LEGENDA     = 26;
   const TAMANHO_SWATCH     = 10;
 
   const FS_LEGENDA         = 11;
-  const FS_EIXO_Y          = 10;
-  const FS_EIXO_X          = 11;
+  const FS_EIXO_X          = 10;
+  const FS_EIXO_Y          = 11;
   const FS_VALOR           = 10;
 
   const OFFSET_TOOLTIP     = 12;
   const MARGEM_BORDA_TT    = 4;
   const OPACIDADE_INATIVA  = 0.35;
-  const GAP_ROTULO_X       = 8;
+  const GAP_ROTULO_Y       = 10;
+  const GAP_VALOR_PONTA     = 6;
   const DURACAO_ANIMACAO_MS = 600;
 
 
   // ----- API pública -----
 
   function Renderizar(svg, config) {
-    if (!svg || !config)                          return false;
-    if (!Array.isArray(config.categorias))        return false;
-    if (!Array.isArray(config.series))            return false;
+    if (!svg || !config)                   return false;
+    if (!Array.isArray(config.categorias)) return false;
+    if (!Array.isArray(config.series))     return false;
 
     Limpar(svg);
 
@@ -74,17 +77,17 @@
     const cfg          = mesclarConfig(config);
     const paddingFinal = ajustarPaddingComLegenda(cfg);
     const area         = calcularAreaPlot(vbox, paddingFinal);
-    const escalaY      = calcularEscalaY(cfg.series);
-    if (escalaY.max <= 0) return false;
+    const escalaX      = calcularEscalaX(cfg.series);
+    if (escalaX.max <= 0) return false;
 
     const camada = aux.CriarElemento('g', { class: CLASSE_CAMADA });
 
     if (cfg.mostrarLegenda) desenharLegenda(camada, vbox, cfg);
     desenharGrade(camada, area, cfg);
-    desenharEixoY(camada, area, escalaY, cfg);
-    const barras = desenharColunas(camada, area, cfg, escalaY);
+    desenharEixoX(camada, area, escalaX, cfg);
+    const barras = desenharBarras(camada, area, cfg, escalaX);
     desenharBaseline(camada, area);
-    desenharRotulosX(camada, area, cfg);
+    desenharRotulosY(camada, area, cfg);
 
     svg.appendChild(camada);
 
@@ -100,7 +103,7 @@
     svg.querySelectorAll('.' + CLASSE_CAMADA).forEach(el => el.remove());
     const pai = svg.parentElement;
     if (pai) {
-      pai.querySelectorAll('.grafico-colunas-tooltip').forEach(el => el.remove());
+      pai.querySelectorAll('.grafico-barras-tooltip').forEach(el => el.remove());
     }
   }
 
@@ -142,7 +145,7 @@
   }
 
 
-  function calcularEscalaY(series) {
+  function calcularEscalaX(series) {
     let max = 0;
     series.forEach(serie => (serie.valores || []).forEach(v => { if (v > max) max = v; }));
     if (max === 0) return { max: 0 };
@@ -200,12 +203,12 @@
     const ticks = cfg.numeroLinhasGrade;
     for (let i = 1; i <= ticks; i++) {
       const t = i / ticks;
-      const y = area.y + area.altura - t * area.altura;
+      const x = area.x + t * area.largura;
       camada.appendChild(criarSvg('line', {
-        x1:                 area.x,
-        x2:                 area.x + area.largura,
-        y1:                 y,
-        y2:                 y,
+        x1:                 x,
+        x2:                 x,
+        y1:                 area.y,
+        y2:                 area.y + area.altura,
         stroke:             'var(--border-strong)',
         'stroke-width':     '1',
         'stroke-dasharray': '3 4',
@@ -215,17 +218,19 @@
   }
 
 
-  function desenharEixoY(camada, area, escalaY, cfg) {
+  function desenharEixoX(camada, area, escalaX, cfg) {
     const ticks = cfg.numeroLinhasGrade;
     for (let i = 0; i <= ticks; i++) {
-      const t     = i / ticks;
-      const valor = escalaY.max * t;
-      const y     = area.y + area.altura - t * area.altura;
+      const t      = i / ticks;
+      const valor  = escalaX.max * t;
+      const x      = area.x + t * area.largura;
+      const ancora = i === 0 ? 'start' : i === ticks ? 'end' : 'middle';
+
       const txt = criarSvg('text', {
-        x: area.x - 10, y: y + 3,
-        'text-anchor':          'end',
+        x, y: area.y + area.altura + 16,
+        'text-anchor':          ancora,
         'font-family':          'var(--fonte-mono)',
-        'font-size':            FS_EIXO_Y,
+        'font-size':            FS_EIXO_X,
         'font-variant-numeric': 'tabular-nums',
         fill:                   'var(--text-muted)',
       });
@@ -235,32 +240,32 @@
   }
 
 
-  function desenharColunas(camada, area, cfg, escalaY) {
+  function desenharBarras(camada, area, cfg, escalaX) {
     const barras = [];
     const numCat = cfg.categorias.length;
     const numSer = cfg.series.length;
     if (numCat === 0 || numSer === 0) return barras;
 
-    const larguraGrupo = area.largura / numCat;
-    const larguraUtil  = larguraGrupo * (1 - FRACAO_GAP_GRUPO);
-    const larguraSlot  = larguraUtil / numSer;
-    const larguraBarra = larguraSlot * (1 - FRACAO_GAP_BARRA);
-    const offsetGrupo  = (larguraGrupo - larguraUtil) / 2;
-    const offsetBarra  = (larguraSlot  - larguraBarra) / 2;
+    const alturaGrupo = area.altura / numCat;
+    const alturaUtil  = alturaGrupo * (1 - FRACAO_GAP_GRUPO);
+    const alturaSlot  = alturaUtil / numSer;
+    const alturaBarra = alturaSlot * (1 - FRACAO_GAP_BARRA);
+    const offsetGrupo = (alturaGrupo - alturaUtil) / 2;
+    const offsetBarra = (alturaSlot  - alturaBarra) / 2;
 
     for (let c = 0; c < numCat; c++) {
-      const xGrupo = area.x + c * larguraGrupo + offsetGrupo;
+      const yGrupo = area.y + c * alturaGrupo + offsetGrupo;
       for (let s = 0; s < numSer; s++) {
-        const valor  = (cfg.series[s].valores || [])[c] || 0;
-        const altura = (valor / escalaY.max) * area.altura;
-        const y      = area.y + area.altura - altura;
-        const x      = xGrupo + s * larguraSlot + offsetBarra;
+        const valor   = (cfg.series[s].valores || [])[c] || 0;
+        const largura = (valor / escalaX.max) * area.largura;
+        const y       = yGrupo + s * alturaSlot + offsetBarra;
 
         const rect = criarSvg('rect', {
-          class:  'grafico-colunas-barra',
-          x, y,
-          width:  larguraBarra,
-          height: Math.max(0, altura),
+          class:  'grafico-barras-barra',
+          x:      area.x,
+          y,
+          width:  Math.max(0, largura),
+          height: alturaBarra,
           fill:   cfg.series[s].cor || 'currentColor',
           rx:     cfg.raio,
         });
@@ -278,7 +283,7 @@
         });
 
         if (cfg.mostrarValores && valor > 0) {
-          desenharValorSobreBarra(camada, x + larguraBarra / 2, y - 5, cfg.formatarValor(valor));
+          desenharValorNaPonta(camada, area.x + largura + GAP_VALOR_PONTA, y + alturaBarra / 2, cfg.formatarValor(valor));
         }
       }
     }
@@ -286,10 +291,10 @@
   }
 
 
-  function desenharValorSobreBarra(camada, x, y, texto) {
+  function desenharValorNaPonta(camada, x, y, texto) {
     const txt = criarSvg('text', {
-      x: x, y: y,
-      'text-anchor':          'middle',
+      x, y: y + 3,
+      'text-anchor':          'start',
       'font-family':          'var(--fonte-mono)',
       'font-size':            FS_VALOR,
       'font-weight':          '600',
@@ -302,41 +307,40 @@
 
 
   function desenharBaseline(camada, area) {
-    const y = area.y + area.altura;
     camada.appendChild(criarSvg('line', {
-      x1: area.x, x2: area.x + area.largura,
-      y1: y,      y2: y,
+      x1: area.x, x2: area.x,
+      y1: area.y, y2: area.y + area.altura,
       stroke:         'var(--eixo)',
       'stroke-width': '1',
     }));
   }
 
 
-  function desenharRotulosX(camada, area, cfg) {
+  function desenharRotulosY(camada, area, cfg) {
     const numCat = cfg.categorias.length;
     if (numCat === 0) return;
 
     const aux             = window.GraficoLib.AuxiliaresSvg;
-    const larguraGrupo    = area.largura / numCat;
-    const larguraMaxTexto = Math.max(0, larguraGrupo - GAP_ROTULO_X);
+    const alturaGrupo     = area.altura / numCat;
+    const larguraMaxTexto = Math.max(0, area.x - GAP_ROTULO_Y);
 
     cfg.categorias.forEach((categoria, c) => {
-      const x        = area.x + c * larguraGrupo + larguraGrupo / 2;
+      const y        = area.y + c * alturaGrupo + alturaGrupo / 2;
       const completo = cfg.formatarRotulo(categoria);
-      const visivel  = aux.TruncarParaLargura(completo, larguraMaxTexto, FS_EIXO_X);
+      const visivel  = aux.TruncarParaLargura(completo, larguraMaxTexto, FS_EIXO_Y);
 
       const txt = criarSvg('text', {
-        x, y: area.y + area.altura + 18,
-        'text-anchor': 'middle',
+        x:             area.x - GAP_ROTULO_Y,
+        y:             y + 4,
+        'text-anchor': 'end',
         'font-family': 'var(--fonte-ui)',
-        'font-size':   FS_EIXO_X,
+        'font-size':   FS_EIXO_Y,
         'font-weight': '500',
         fill:          'var(--text-muted)',
       });
       txt.textContent = visivel;
 
-      // Quando o rótulo foi truncado, expõe o nome completo via <title> —
-      // o navegador mostra como tooltip nativo ao passar o mouse.
+      // Rótulo truncado expõe o nome completo via <title> (tooltip nativo).
       if (visivel !== completo) {
         txt.style.cursor = 'help';
         const titulo = criarSvg('title');
@@ -354,13 +358,13 @@
     barras.forEach(barra => {
       const el = barra.el;
       el.style.transformBox    = 'fill-box';
-      el.style.transformOrigin = 'center bottom';
-      el.style.transform       = 'scaleY(0)';
+      el.style.transformOrigin = 'left center';
+      el.style.transform       = 'scaleX(0)';
       el.style.transition      = `transform ${DURACAO_ANIMACAO_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease`;
     });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        barras.forEach(barra => { barra.el.style.transform = 'scaleY(1)'; });
+        barras.forEach(barra => { barra.el.style.transform = 'scaleX(1)'; });
       });
     });
   }
@@ -370,7 +374,7 @@
 
   function conectarHover(svg, barras, cfg) {
     const container = svg.parentElement;
-    if (!container)         return;
+    if (!container)          return;
     if (barras.length === 0) return;
 
     if (getComputedStyle(container).position === 'static') {
@@ -451,10 +455,10 @@
   // ----- Exporta -----
 
   window.GraficoLib = window.GraficoLib || {};
-  window.GraficoLib.Colunas = {
+  window.GraficoLib.Barras = {
     Renderizar,
     Limpar,
   };
 
-  if (TESTANDO) console.log('[GraficoLib] Colunas carregado');
+  if (TESTANDO) console.log('[GraficoLib] Barras carregado');
 })();

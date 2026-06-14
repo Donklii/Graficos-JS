@@ -21,6 +21,7 @@
 
   const LIMITE_MILHAO = 1_000_000;
   const LIMITE_MIL    = 1_000;
+  const FATOR_FRACAO_PCT = 100;
 
 
   // ----- API pública -----
@@ -78,6 +79,39 @@
   }
 
 
+  function Numero(casas) {
+    const fixa = casas == null ? 0 : casas;
+    return (valor) => Number(valor).toLocaleString('pt-BR', {
+      minimumFractionDigits: fixa,
+      maximumFractionDigits: fixa,
+    });
+  }
+
+
+  // Formata um valor já expresso em pontos percentuais (ex.: 42.5 → "42,5%").
+  // Para frações de 0 a 1, use `comoFracao: true` (ex.: 0.425 → "42,5%").
+  function Percentual(opcoes) {
+    const cfg = mesclarOpcoesPercentual(opcoes);
+    return (valor) => {
+      const pontos = cfg.comoFracao ? valor * FATOR_FRACAO_PCT : valor;
+      return Number(pontos).toLocaleString('pt-BR', {
+        minimumFractionDigits: cfg.casas,
+        maximumFractionDigits: cfg.casas,
+      }) + '%';
+    };
+  }
+
+
+  function DataHora(opcoes) {
+    const cfg = mesclarOpcoesData(opcoes);
+    return (timestamp) => {
+      const data = paraData(timestamp, cfg.multiplicadorTimestamp);
+      if (!data) return '—';
+      return formatarDiaMes(data) + ' ' + formatarHoraMinuto(data);
+    };
+  }
+
+
   // ----- Internos -----
 
   function formatarValorCompacto(valor, prefixo) {
@@ -97,6 +131,16 @@
   }
 
 
+  function mesclarOpcoesPercentual(opcoes) {
+    if (typeof opcoes === 'number') return { casas: opcoes, comoFracao: false };
+    const opts = opcoes || {};
+    return {
+      casas:      opts.casas != null ? opts.casas : 0,
+      comoFracao: !!opts.comoFracao,
+    };
+  }
+
+
   function formatarMesAno(data) {
     return MESES_ABREVIADOS_PT[data.getMonth()] + '/' + String(data.getFullYear()).slice(2);
   }
@@ -105,6 +149,12 @@
   function formatarDiaMes(data) {
     return String(data.getDate()).padStart(2, '0') + '/'
          + String(data.getMonth() + 1).padStart(2, '0');
+  }
+
+
+  function formatarHoraMinuto(data) {
+    return String(data.getHours()).padStart(2, '0') + ':'
+         + String(data.getMinutes()).padStart(2, '0');
   }
 
 
@@ -122,8 +172,11 @@
     MoedaCompacta,
     NumeroCompacto,
     MoedaBRL,
+    Numero,
+    Percentual,
     DataCurta,
     DataLonga,
+    DataHora,
     MesAno,
     MESES_ABREVIADOS_PT,
   };

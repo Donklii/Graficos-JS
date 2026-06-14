@@ -27,6 +27,8 @@
   const MIN_FRACAO_VISIVEL     = 1e-6;
   const RAIO_PROPORCAO_VBOX    = 0.8;
   const LARGURA_ANEL_PADRAO    = 12;
+  const DURACAO_ANIMACAO_MS    = 500;
+  const ATRASO_ENTRE_ARCOS_MS  = 70;
 
 
   // ----- API pública -----
@@ -42,6 +44,7 @@
 
     const circunferencia = 2 * Math.PI * cfg.raio;
     const ancoraInsercao = ringSvg.querySelector('text');
+    const arcos = [];
     let offset = 0;
 
     segmentos.forEach(segmento => {
@@ -50,8 +53,11 @@
       const arco = desenharArco(cfg, circunferencia, offset, fracao, segmento);
       if (ancoraInsercao) ringSvg.insertBefore(arco, ancoraInsercao);
       else                ringSvg.appendChild(arco);
+      arcos.push(arco);
       offset += fracao * circunferencia;
     });
+
+    if (cfg.animar) animarEntrada(arcos);
 
     return true;
   }
@@ -110,7 +116,23 @@
       classeArco:    opts.classeArco       || CLASSE_ARCO_PADRAO,
       rotacao:       opts.rotacaoInicial != null ? opts.rotacaoInicial : ROTACAO_INICIAL_PADRAO,
       strokeLinecap: opts.strokeLinecap || 'butt',
+      animar:        !!opts.animar,
     };
+  }
+
+
+  // Fade-in escalonado dos arcos (opt-in). Mantém o layout intacto —
+  // apenas anima a opacidade, então não interfere em medições.
+  function animarEntrada(arcos) {
+    arcos.forEach((arco, i) => {
+      arco.style.opacity    = '0';
+      arco.style.transition = `opacity ${DURACAO_ANIMACAO_MS}ms ease ${i * ATRASO_ENTRE_ARCOS_MS}ms`;
+    });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        arcos.forEach(arco => { arco.style.opacity = '1'; });
+      });
+    });
   }
 
 

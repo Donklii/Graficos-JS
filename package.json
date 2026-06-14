@@ -1,32 +1,47 @@
 {
   "name": "graficos-js",
   "version": "0.1.0",
-  "description": "Biblioteca leve de gráficos em SVG puro (linha, donut, colunas, sparkline) sem dependências.",
+  "description": "Biblioteca leve de gráficos em SVG puro (linha, área empilhada, donut, pizza, colunas, barras, sparkline, medidor) sem dependências.",
   "private": false,
   "license": "SEE LICENSE IN LICENSE",
   "author": "Donklii",
+  "scripts": {
+    "test": "node --test"
+  },
   "keywords": [
     "grafico",
     "svg",
     "chart",
     "sparkline",
     "donut",
+    "pizza",
     "colunas",
+    "barras",
+    "area-empilhada",
+    "medidor",
+    "gauge",
     "vanilla-js"
   ],
   "files": [
     "auxiliaresSvg.js",
+    "areaEmpilhada.js",
+    "barras.js",
     "colunas.js",
     "dominio.js",
     "donut.js",
     "eixos.js",
     "formatadores.js",
     "interacao.js",
+    "medidor.js",
     "nucleo.js",
+    "pizza.js",
     "popupGrupo.js",
     "series.js",
     "sparkline.js",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
 }

@@ -21,6 +21,7 @@
       --negative:       #ef4444;
       --info:           #3b82f6;
       --warning:        #f59e0b;
+      --roxo:           #8b5cf6;
       --fonte-ui:       system-ui, -apple-system, "Segoe UI", sans-serif;
       --fonte-mono:     ui-monospace, "Cascadia Code", Consolas, monospace;
     }
@@ -49,6 +50,7 @@
       gap: 16px;
     }
 
+    /* Tooltip do gráfico de linha / área */
     .chart-tooltip {
       position:      absolute;
       background:    var(--bg-elevated);
@@ -67,15 +69,30 @@
     .chart-tt-name    { color: var(--text-muted); margin-right: auto; }
     .chart-tt-val     { font-family: var(--fonte-mono); font-weight: 600; }
 
+    /* Tooltip de colunas / barras / área empilhada (classes .titulo/.linha/.pt) */
+    .chart-tooltip .titulo { font-weight: 600; margin-bottom: 4px; }
+    .chart-tooltip .linha  { display: flex; align-items: center; gap: 10px; margin: 2px 0; }
+    .chart-tooltip .linha > span:first-child { display: flex; align-items: center; gap: 6px; color: var(--text-muted); margin-right: auto; }
+    .chart-tooltip .linha > span:last-child  { font-family: var(--fonte-mono); font-weight: 600; }
+    .chart-tooltip .linha.total { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+    .chart-tooltip .linha.total > span:first-child { color: var(--text); }
+    .chart-tooltip .pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
     .grafico-donut-legenda-item   { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
     .grafico-donut-legenda-dot    { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
     .grafico-donut-legenda-rotulo { color: var(--text-muted); margin-right: auto; }
     .grafico-donut-legenda-pct    { font-family: var(--fonte-mono); font-weight: 600; }
 
-    #linha   { width: 100%; height: 280px; position: relative; }
-    #colunas { width: 100%; height: 280px; }
-    #donut   { width: 200px; height: 200px; }
-    #spark   { width: 200px; height: 50px;  }
+    #linha    { width: 100%; height: 280px; position: relative; }
+    #colunas  { width: 100%; height: 280px; }
+    #barras   { width: 100%; height: 280px; }
+    #area     { width: 100%; height: 280px; }
+    #donut    { width: 200px; height: 200px; }
+    #pizza    { width: 200px; height: 200px; }
+    #medidor  { width: 240px; height: 140px; }
+    #medidor2 { width: 240px; height: 140px; }
+    #spark    { width: 200px; height: 50px;  }
+    #sparkBar { width: 200px; height: 50px;  }
   </style>
 </head>
 <body>
@@ -83,16 +100,30 @@
 
   <div class="grid">
     <div>
-      <h2>Linha — receita diária (mock)</h2>
+      <h2>Linha — receita diária (responsivo)</h2>
       <div class="card">
         <div id="linha"></div>
       </div>
     </div>
 
     <div>
-      <h2>Colunas — vendas por loja</h2>
+      <h2>Colunas — vendas por loja (animado)</h2>
       <div class="card">
         <svg id="colunas" viewBox="0 0 600 280" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <div>
+      <h2>Barras — ranking de regiões (animado)</h2>
+      <div class="card">
+        <svg id="barras" viewBox="0 0 600 280" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <div>
+      <h2>Área empilhada — receita por canal</h2>
+      <div class="card">
+        <svg id="area" viewBox="0 0 600 280" preserveAspectRatio="none"></svg>
       </div>
     </div>
 
@@ -107,9 +138,38 @@
     </div>
 
     <div>
+      <h2>Pizza — participação</h2>
+      <div class="card" style="display:flex; align-items:center; gap:24px;">
+        <svg id="pizza" viewBox="0 0 100 100"></svg>
+        <div id="pizza-legenda"></div>
+      </div>
+    </div>
+
+    <div>
+      <h2>Medidor — progresso (simples)</h2>
+      <div class="card" style="display:flex; justify-content:center;">
+        <svg id="medidor" viewBox="0 0 240 140"></svg>
+      </div>
+    </div>
+
+    <div>
+      <h2>Medidor — faixas + ponteiro</h2>
+      <div class="card" style="display:flex; justify-content:center;">
+        <svg id="medidor2" viewBox="0 0 240 140"></svg>
+      </div>
+    </div>
+
+    <div>
       <h2>Sparkline rico</h2>
       <div class="card">
         <svg id="spark"></svg>
+      </div>
+    </div>
+
+    <div>
+      <h2>Sparkline barras</h2>
+      <div class="card">
+        <svg id="sparkBar"></svg>
       </div>
     </div>
   </div>
@@ -122,26 +182,30 @@
   <script src="../interacao.js"></script>
   <script src="../sparkline.js"></script>
   <script src="../donut.js"></script>
+  <script src="../pizza.js"></script>
   <script src="../colunas.js"></script>
+  <script src="../barras.js"></script>
+  <script src="../areaEmpilhada.js"></script>
+  <script src="../medidor.js"></script>
   <script src="../popupGrupo.js"></script>
   <script src="../nucleo.js"></script>
 
   <script>
     (function () {
-      const fmtMoeda = window.Grafico.Formatadores.MoedaCompacta('R$ ');
-      const fmtData  = window.Grafico.Formatadores.DataCurta({ multiplicadorTimestamp: 1000 });
+      const F        = window.Grafico.Formatadores;
+      const fmtMoeda = F.MoedaCompacta('R$ ');
+      const fmtData  = F.DataCurta({ multiplicadorTimestamp: 1000 });
 
-      // ----- Linha -----
+      // ----- Linha (responsivo) -----
       const baseTs = Math.floor(Date.now() / 1000) - 30 * 86400;
       const pontos = Array.from({ length: 30 }, (_, i) => ({
         x: baseTs + i * 86400,
         y: 100 + Math.sin(i / 4) * 40 + i * 3 + (Math.random() * 10),
       }));
       const grafico = window.Grafico(document.getElementById('linha'), {
-        width:  600,
-        height: 280,
-        fmtY:   fmtMoeda,
-        fmtX:   fmtData,
+        responsivo:      true,
+        fmtY:            fmtMoeda,
+        fmtX:            fmtData,
         fmtTooltipTitle: fmtData,
         fmtTooltipValue: (v) => fmtMoeda(v),
       });
@@ -151,15 +215,38 @@
         ],
       });
 
-      // ----- Colunas -----
-      window.GraficoLib.Colunas.Renderizar(document.getElementById('colunas'), {
+      // ----- Colunas (animado) -----
+      window.Grafico.Colunas.Renderizar(document.getElementById('colunas'), {
         categorias: ['Loja A', 'Loja B', 'Loja C', 'Loja D'],
         series: [
           { rotulo: 'Faturamento', cor: 'var(--positive)', valores: [120, 180, 95, 210] },
           { rotulo: 'Custo',       cor: 'var(--warning)',  valores: [70,  90, 60,  120] },
         ],
+        formatarValor: fmtMoeda,
+        animar:        true,
+      });
+
+      // ----- Barras horizontais (animado) -----
+      window.Grafico.Barras.Renderizar(document.getElementById('barras'), {
+        categorias: ['Distrito Federal', 'São Paulo', 'Minas Gerais', 'Bahia', 'Ceará'],
+        series: [
+          { rotulo: 'Faturamento', cor: 'var(--info)', valores: [210, 320, 150, 95, 60] },
+        ],
         formatarValor:  fmtMoeda,
-        mostrarValores: false,
+        mostrarValores: true,
+        animar:         true,
+      });
+
+      // ----- Área empilhada -----
+      window.Grafico.AreaEmpilhada.Renderizar(document.getElementById('area'), {
+        categorias: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+        series: [
+          { rotulo: 'Loja',     cor: 'var(--info)',     valores: [40, 55, 50, 70, 65, 80] },
+          { rotulo: 'Online',   cor: 'var(--positive)', valores: [20, 25, 35, 30, 45, 55] },
+          { rotulo: 'Atacado',  cor: 'var(--roxo)',     valores: [10, 12, 18, 22, 20, 28] },
+        ],
+        formatarValor: fmtMoeda,
+        animar:        true,
       });
 
       // ----- Donut -----
@@ -168,13 +255,54 @@
         { cor: 'var(--warning)',  valor: 25, rotulo: 'Pendente' },
         { cor: 'var(--negative)', valor: 15, rotulo: 'Recusado' },
       ];
-      window.Grafico.Donut.Renderizar(document.getElementById('donut'), segmentos);
+      window.Grafico.Donut.Renderizar(document.getElementById('donut'), segmentos, { animar: true });
       window.Grafico.Donut.RenderizarLegenda(document.getElementById('donut-legenda'), segmentos);
 
-      // ----- Sparkline -----
+      // ----- Pizza -----
+      const fatias = [
+        { cor: 'var(--info)',     valor: 45, rotulo: 'Cartão' },
+        { cor: 'var(--positive)', valor: 30, rotulo: 'Pix' },
+        { cor: 'var(--warning)',  valor: 15, rotulo: 'Boleto' },
+        { cor: 'var(--roxo)',     valor: 10, rotulo: 'Outros' },
+      ];
+      window.Grafico.Pizza.Renderizar(document.getElementById('pizza'), fatias);
+      window.Grafico.Pizza.RenderizarLegenda(document.getElementById('pizza-legenda'), fatias);
+
+      // ----- Medidor simples -----
+      window.Grafico.Medidor.Renderizar(document.getElementById('medidor'), {
+        valor:         72,
+        maximo:        100,
+        cor:           'var(--info)',
+        formatarValor: F.Percentual(0),
+        rotulo:        'Meta do mês',
+        animar:        true,
+      });
+
+      // ----- Medidor com faixas + ponteiro -----
+      window.Grafico.Medidor.Renderizar(document.getElementById('medidor2'), {
+        valor:         86,
+        maximo:        100,
+        faixas: [
+          { ate: 50,  cor: 'var(--negative)' },
+          { ate: 80,  cor: 'var(--warning)' },
+          { ate: 100, cor: 'var(--positive)' },
+        ],
+        formatarValor: F.Numero(0),
+        rotulo:        'NPS',
+        animar:        true,
+      });
+
+      // ----- Sparkline rico -----
       window.Grafico.Sparkline.RenderizarRico(
         document.getElementById('spark'),
         [10, 12, 8, 15, 18, 14, 22, 28, 24, 30],
+        { corPositivo: 'var(--positive)', corNegativo: 'var(--negative)' },
+      );
+
+      // ----- Sparkline barras -----
+      window.Grafico.Sparkline.RenderizarBarras(
+        document.getElementById('sparkBar'),
+        [8, -3, 5, -6, 10, 4, -2, 12, 9, 15],
         { corPositivo: 'var(--positive)', corNegativo: 'var(--negative)' },
       );
     })();

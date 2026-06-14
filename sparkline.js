@@ -24,6 +24,8 @@
   const LARGURA_LINHA_RICO  = 1.6;
   const OPACIDADE_AREA_RICO = 0.18;
   const RAIO_DOT_RICO       = 1.8;
+  const FRACAO_GAP_BARRA    = 0.30;
+  const RAIO_BARRA          = 0.5;
   const NS_SVG              = 'http://www.w3.org/2000/svg';
 
 
@@ -73,6 +75,30 @@
     desenharArea(svg, pontos, dimensoes, cor);
     desenharLinha(svg, pontos, cor);
     desenharDotFinal(svg, pontos[pontos.length - 1], cor);
+
+    return true;
+  }
+
+
+  // Mini-gráfico de colunas. Cada valor vira uma barra a partir de uma
+  // baseline (zero quando os valores cruzam zero, senão o mínimo). Cores
+  // por sinal seguem corPositivo/corNegativo, como nos demais sparklines.
+  function RenderizarBarras(svg, valores, opcoes) {
+    if (!svg) return false;
+    if (!Array.isArray(valores) || valores.length < 1) return false;
+
+    const dimensoes = mesclarDimensoes(opcoes);
+    garantirAtributosSvg(svg, dimensoes);
+
+    const escala       = calcularEscala(valores, dimensoes);
+    const valorBase    = resolverBase(opcoes, escala);
+    const layout       = calcularLayoutBarras(valores.length, dimensoes, escala);
+
+    svg.innerHTML = '';
+
+    valores.forEach((valor, i) => {
+      desenharBarra(svg, valor, i, valorBase, dimensoes, escala, layout, opcoes);
+    });
 
     return true;
   }
@@ -166,6 +192,47 @@
   }
 
 
+  function resolverBase(opcoes, escala) {
+    if (opcoes && opcoes.base != null) return opcoes.base;
+    return escala.min < 0 ? 0 : escala.min;
+  }
+
+
+  function calcularLayoutBarras(total, dimensoes, escala) {
+    const slot   = escala.largura / total;
+    const barra  = slot * (1 - FRACAO_GAP_BARRA);
+    const offset = (slot - barra) / 2;
+    return { slot, barra, offset };
+  }
+
+
+  function desenharBarra(svg, valor, indice, valorBase, dimensoes, escala, layout, opcoes) {
+    const projY = (v) => dimensoes.margem + (1 - (v - escala.min) / escala.span) * escala.altura;
+
+    const yValor = projY(valor);
+    const yBase  = projY(valorBase);
+    const y      = Math.min(yValor, yBase);
+    const altura = Math.max(0, Math.abs(yValor - yBase));
+    const x      = dimensoes.margem + indice * layout.slot + layout.offset;
+
+    svg.appendChild(criarSvg('rect', {
+      x:      x.toFixed(1),
+      y:      y.toFixed(1),
+      width:  layout.barra.toFixed(1),
+      height: altura.toFixed(1),
+      rx:     RAIO_BARRA,
+      fill:   corDaBarra(valor, valorBase, opcoes),
+    }));
+  }
+
+
+  function corDaBarra(valor, valorBase, opcoes) {
+    if (!opcoes) return 'currentColor';
+    if (valor >= valorBase) return opcoes.corPositivo || opcoes.cor || 'currentColor';
+    return opcoes.corNegativo || opcoes.cor || opcoes.corPositivo || 'currentColor';
+  }
+
+
   function obterCorPorTendencia(valores, opcoes) {
     if (!opcoes) return null;
     const corPositivo = opcoes.corPositivo;
@@ -192,6 +259,7 @@
     GerarPath,
     Renderizar,
     RenderizarRico,
+    RenderizarBarras,
   };
 
   if (TESTANDO) console.log('[GraficoLib] Sparkline carregado');

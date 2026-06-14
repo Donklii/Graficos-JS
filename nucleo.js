@@ -71,6 +71,9 @@
       Limpar();
       DefinirStatus('');
 
+      estado.ultimoDados = dados || null;
+      if (config.responsivo) ajustarDimensoesAoContainer();
+
       const series = (dados && dados.series) || [];
       estado.series = series;
 
@@ -94,6 +97,14 @@
     }
 
 
+    // Re-renderiza com os últimos dados (ex.: após resize do container).
+    // Sem dados anteriores não há o que redesenhar.
+    function Redesenhar() {
+      if (!estado.ultimoDados) return false;
+      return Renderizar(estado.ultimoDados);
+    }
+
+
     function DefinirStatus(mensagem) {
       camadas.status.textContent  = mensagem || '';
       camadas.status.style.display = mensagem ? 'flex' : 'none';
@@ -107,17 +118,41 @@
 
     function Destruir() {
       desconectarHover();
+      if (desconectarResize) desconectarResize();
       removerSeExistir(camadas.svg);
       removerSeExistir(camadas.tooltip);
       removerSeExistir(camadas.status);
       container.classList.remove('chart-root');
-      estado.series = [];
-      estado.allX   = [];
+      estado.series      = [];
+      estado.allX        = [];
+      estado.ultimoDados = null;
     }
+
+
+    // Ajusta dimensões/viewBox ao tamanho real do container. Só atua no
+    // modo responsivo; devolve true quando algo mudou.
+    function ajustarDimensoesAoContainer() {
+      const rect = container.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      if (w <= 0 || h <= 0)                               return false;
+      if (w === dimensoes.width && h === dimensoes.height) return false;
+
+      dimensoes.width  = w;
+      dimensoes.height = h;
+      camadas.svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return true;
+    }
+
+
+    const desconectarResize = config.responsivo
+      ? conectarResize(container, Redesenhar)
+      : null;
 
 
     return {
       Renderizar,
+      Redesenhar,
       DefinirStatus,
       Limpar,
       Destruir,
@@ -126,6 +161,27 @@
 
 
   // ----- Internos -----
+
+  // Observa o container e dispara `aoRedimensionar` (coalescido num frame)
+  // a cada mudança de tamanho. Sem ResizeObserver no ambiente, devolve um
+  // desconectar inócuo — o gráfico continua funcionando, só não reflui.
+  function conectarResize(container, aoRedimensionar) {
+    if (typeof ResizeObserver === 'undefined') return function () {};
+
+    let agendado = false;
+    const observer = new ResizeObserver(() => {
+      if (agendado) return;
+      agendado = true;
+      requestAnimationFrame(() => {
+        agendado = false;
+        aoRedimensionar();
+      });
+    });
+    observer.observe(container);
+
+    return function desconectar() { observer.disconnect(); };
+  }
+
 
   function montarConfig(opcoes) {
     const opts = opcoes || {};
@@ -140,6 +196,7 @@
       fmtTooltipTitle: opts.fmtTooltipTitle || opts.fmtX || ((x) => String(x)),
       fmtTooltipValue: opts.fmtTooltipValue || opts.fmtY || ((v) => String(v)),
       tooltipOffset:   opts.tooltipOffset != null ? opts.tooltipOffset : OFFSET_TOOLTIP,
+      responsivo:      !!opts.responsivo,
     };
   }
 
@@ -160,6 +217,7 @@
       xMin: 0, xMax: 1,
       yMin: 0, yMax: 1,
       allX: [],
+      ultimoDados: null,
     };
   }
 
@@ -239,11 +297,15 @@
   window.Grafico = CriarGrafico;
 
   // Helpers reutilizáveis acessíveis por consumidores.
-  window.Grafico.Formatadores = window.GraficoLib.Formatadores;
-  window.Grafico.Sparkline    = window.GraficoLib.Sparkline;
-  window.Grafico.Donut        = window.GraficoLib.Donut;
-  window.Grafico.Colunas      = window.GraficoLib.Colunas;
-  window.Grafico.PopupGrupo   = window.GraficoLib.PopupGrupo;
+  window.Grafico.Formatadores   = window.GraficoLib.Formatadores;
+  window.Grafico.Sparkline      = window.GraficoLib.Sparkline;
+  window.Grafico.Donut          = window.GraficoLib.Donut;
+  window.Grafico.Pizza          = window.GraficoLib.Pizza;
+  window.Grafico.Colunas        = window.GraficoLib.Colunas;
+  window.Grafico.Barras         = window.GraficoLib.Barras;
+  window.Grafico.AreaEmpilhada  = window.GraficoLib.AreaEmpilhada;
+  window.Grafico.Medidor        = window.GraficoLib.Medidor;
+  window.Grafico.PopupGrupo     = window.GraficoLib.PopupGrupo;
 
   if (TESTANDO) console.log('[Grafico] núcleo carregado');
 })();
